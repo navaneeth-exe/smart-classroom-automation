@@ -1,0 +1,27 @@
+# Smart Classroom Automation — Project State Summary
+
+- **PROJECT:** Smart Classroom Automation System Using STM32 (Interactive 3D Digital Twin)
+- **CURRENT_PHASE:** Phase 9 (UI Polish + Performance) Complete & Verified
+- **PROJECT_STATUS:** Production/Demo Ready (Client-side simulation only, no physical hardware connected)
+- **CURRENT_ROUTES:**
+  - `/` (Dashboard & Cockpit: 3D Twin + Sidebar Controls + Status Bar)
+  - `/classroom` (Dedicated full-viewport 3D Classroom for projector viva)
+  - `/controls` (Fine-grained environmental sliders, occupancy controls, and manual switches)
+  - `/analytics` (Rolling telemetry waveforms, metric summary cards, and activity log)
+  - `/presentation` (13-scene guided evaluation walkthrough with camera presets)
+- **MAIN_TECH_STACK:** React 19, TypeScript, Vite 6, Tailwind CSS, Three.js / React Three Fiber, Drei, Zustand, Framer Motion, Recharts, Lucide React
+- **SIMULATION_ENGINE_LOCATION:** `src/simulation/classroomStore.ts` & `src/simulation/automationEngine.ts`
+- **MAIN_STORE:** `src/simulation/classroomStore.ts` (Unified Zustand store — Single Source of Truth)
+- **3D_SCENE_LOCATION:** `src/components/classroom/ClassroomCanvas.tsx` & `ClassroomScene.tsx`
+- **ANALYTICS_LOCATION:** `src/pages/AnalyticsPage.tsx` & `src/components/analytics/AnalyticsCharts.tsx`
+- **PRESENTATION_LOCATION:** `src/pages/PresentationPage.tsx` & `src/components/presentation/presentationTimeline.ts`
+- **IMPORTANT_FILES:**
+  - `src/simulation/classroomStore.ts` (Store state & actions)
+  - `src/simulation/automationEngine.ts` (Automation calculation rules)
+  - `src/components/classroom/ClassroomCanvas.tsx` (R3F canvas, smooth camera lerp, lighting)
+  - `src/components/classroom/classroomConfig.ts` (Desk & camera preset coordinates)
+  - `src/components/presentation/presentationTimeline.ts` (13-scene presentation sequence)
+  - `docs/AI_HANDOFF.md` (Detailed architecture and system guide)
+- **KNOWN_BLOCKERS:** None (TypeScript compiles with 0 errors via `npx tsc --noEmit`)
+- **NEXT_TASK:** Phase 10 (Final Packaging & Evaluation Extras, e.g., telemetry export, if requested)
+- **LAST_MAJOR_CHANGE:** Phase 9 UI polish (smooth camera lerping between presets, lighting tune, geometry memoization, Framer Motion page transitions) + pushed to GitHub `main` branch.
