@@ -46,12 +46,12 @@ export const ClassroomPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="w-full h-[620px]">
+      <div className="w-full h-[520px] sm:h-[620px] lg:h-[calc(100vh-16rem)] min-h-[460px] relative min-w-0">
         <ClassroomCanvas className="w-full h-full" />
       </div>
 
-      <div className="bg-white p-4 rounded-xl border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+      <div className="bg-white p-4 rounded-xl border border-slate-200 text-xs text-slate-600 flex flex-wrap gap-3 items-center justify-between">
+        <div className="flex flex-wrap items-center gap-4">
           <span><strong>Occupancy:</strong> {occupancy} / {maxOccupancy} Students</span>
           <span className="flex items-center space-x-1">
             <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
@@ -62,7 +62,7 @@ export const ClassroomPage: React.FC = () => {
             <span>Fan: <strong className="text-blue-600">{fanSpeed}% PWM</strong></span>
           </span>
         </div>
-        <div className="text-slate-400">
+        <div className="text-slate-400 text-[11px]">
           Click sensors, fans, and students to inspect • Drag to orbit
         </div>
       </div>
