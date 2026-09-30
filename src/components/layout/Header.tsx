@@ -162,7 +162,21 @@ export const Header: React.FC = () => {
             }
           >
             <Presentation className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Presentation Mode</span>
+            <span>Academic PPT</span>
+          </NavLink>
+
+          <NavLink
+            to="/twin-demo"
+            className={({ isActive }) =>
+              `flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                isActive
+                  ? 'bg-blue-50 text-blue-700 font-semibold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`
+            }
+          >
+            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+            <span>3D Twin Demo</span>
           </NavLink>
         </nav>
       </div>

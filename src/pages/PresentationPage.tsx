@@ -1,354 +1,423 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Play, 
-  Pause, 
-  SkipBack, 
-  SkipForward, 
+  ChevronLeft, 
+  ChevronRight, 
+  Maximize, 
+  Minimize, 
   RotateCcw, 
-  LogOut, 
-  Cpu, 
-  CheckCircle2, 
-  Lightbulb, 
-  Wind, 
-  Thermometer, 
-  Sun, 
-  Users,
-  Radio
+  Sparkles, 
+  Sliders, 
+  Play, 
+  Pause,
+  LogOut,
+  Layers
 } from 'lucide-react';
+import { ACADEMIC_SLIDES } from '../components/presentation/academicSlidesData';
 import { ClassroomCanvas } from '../components/classroom/ClassroomCanvas';
-import { PRESENTATION_SCENES } from '../components/presentation/presentationTimeline';
-import { useClassroomStore } from '../store/classroomStore';
 
 export const PresentationPage: React.FC = () => {
   const navigate = useNavigate();
-  const [currentSceneIdx, setCurrentSceneIdx] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [currentSlideIdx, setCurrentSlideIdx] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Live simulation states for HUD readout
-  const occupancy = useClassroomStore((state) => state.occupancy);
-  const pirDetected = useClassroomStore((state) => state.pirDetected);
-  const lightIntensity = useClassroomStore((state) => state.lightIntensity);
-  const lightState = useClassroomStore((state) => state.lightState);
-  const temperature = useClassroomStore((state) => state.temperature);
-  const fanSpeed = useClassroomStore((state) => state.fanSpeed);
+  const totalSlides = ACADEMIC_SLIDES.length;
+  const currentSlide = ACADEMIC_SLIDES[currentSlideIdx];
 
-  const scene = PRESENTATION_SCENES[currentSceneIdx];
+  // Navigation handlers
+  const nextSlide = useCallback(() => {
+    setCurrentSlideIdx((prev) => (prev < totalSlides - 1 ? prev + 1 : prev));
+  }, [totalSlides]);
 
-  // Execute scene action
-  const executeScene = useCallback((idx: number) => {
-    const targetScene = PRESENTATION_SCENES[idx];
-    if (targetScene) {
-      targetScene.action();
-    }
+  const prevSlide = useCallback(() => {
+    setCurrentSlideIdx((prev) => (prev > 0 ? prev - 1 : prev));
   }, []);
 
-  // Go to specific scene
-  const goToScene = useCallback((idx: number) => {
-    const safeIdx = Math.max(0, Math.min(idx, PRESENTATION_SCENES.length - 1));
-    setCurrentSceneIdx(safeIdx);
-    setElapsedSeconds(0);
-    executeScene(safeIdx);
-  }, [executeScene]);
-
-  // Restart presentation
-  const handleRestart = useCallback(() => {
-    goToScene(0);
-    setIsPlaying(true);
-  }, [goToScene]);
-
-  // Play / Pause toggle
-  const togglePlay = () => {
-    setIsPlaying((prev) => !prev);
+  const goToSlide = (idx: number) => {
+    if (idx >= 0 && idx < totalSlides) {
+      setCurrentSlideIdx(idx);
+    }
   };
 
-  // Next scene
-  const handleNext = useCallback(() => {
-    if (currentSceneIdx < PRESENTATION_SCENES.length - 1) {
-      goToScene(currentSceneIdx + 1);
-    } else {
-      setIsPlaying(false);
-    }
-  }, [currentSceneIdx, goToScene]);
+  const restartPresentation = () => {
+    setCurrentSlideIdx(0);
+  };
 
-  // Previous scene
-  const handlePrevious = useCallback(() => {
-    if (currentSceneIdx > 0) {
-      goToScene(currentSceneIdx - 1);
-    }
-  }, [currentSceneIdx, goToScene]);
-
-  // Execute initial scene on mount
-  const hasMounted = useRef(false);
-  useEffect(() => {
-    if (!hasMounted.current) {
-      hasMounted.current = true;
-      executeScene(0);
-    }
-  }, [executeScene]);
-
-  // Auto-advance timer
-  useEffect(() => {
-    if (!isPlaying) return;
-
-    const interval = setInterval(() => {
-      setElapsedSeconds((prev) => {
-        if (prev + 1 >= scene.durationSeconds) {
-          // Advance to next scene
-          if (currentSceneIdx < PRESENTATION_SCENES.length - 1) {
-            goToScene(currentSceneIdx + 1);
-          } else {
-            setIsPlaying(false);
-          }
-          return 0;
-        }
-        return prev + 1;
+  // Fullscreen toggle handler
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen().catch((err) => {
+        console.error(`Fullscreen request failed: ${err.message}`);
       });
-    }, 1000);
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen().catch((err) => {
+        console.error(`Exit fullscreen failed: ${err.message}`);
+      });
+      setIsFullscreen(false);
+    }
+  };
 
-    return () => clearInterval(interval);
-  }, [isPlaying, scene.durationSeconds, currentSceneIdx, goToScene]);
+  // Listen for fullscreen change events (e.g. Esc key)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
-  const progressPct = Math.min(100, Math.round((elapsedSeconds / scene.durationSeconds) * 100));
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if an input is focused
+      if (['input', 'textarea'].includes((e.target as HTMLElement).tagName.toLowerCase())) return;
+
+      switch (e.key) {
+        case 'ArrowRight':
+        case ' ': // Spacebar advances
+          e.preventDefault();
+          nextSlide();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          prevSlide();
+          break;
+        case 'Home':
+          e.preventDefault();
+          goToSlide(0);
+          break;
+        case 'End':
+          e.preventDefault();
+          goToSlide(totalSlides - 1);
+          break;
+        case 'f':
+        case 'F':
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case 'Escape':
+          if (isFullscreen) {
+            // Browser handles exiting fullscreen, state will sync via event listener
+          }
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [nextSlide, prevSlide, totalSlides, isFullscreen]);
+
+  // Optional autoplay / timer
+  useEffect(() => {
+    if (!isAutoPlaying) return;
+    const timer = setInterval(() => {
+      setCurrentSlideIdx((prev) => {
+        if (prev < totalSlides - 1) {
+          return prev + 1;
+        } else {
+          setIsAutoPlaying(false);
+          return prev;
+        }
+      });
+    }, 8000); // 8 seconds per slide
+
+    return () => clearInterval(timer);
+  }, [isAutoPlaying, totalSlides]);
+
+  const progressPercentage = ((currentSlideIdx + 1) / totalSlides) * 100;
+
+  const [showTwinModal, setShowTwinModal] = useState(false);
 
   return (
-    <div className="relative w-full h-[calc(100vh-5.5rem)] min-h-[640px] flex flex-col rounded-2xl overflow-hidden border border-slate-200/80 bg-slate-950 shadow-2xl">
-      {/* 3D Classroom Visual Focus (dominates viewport) */}
-      <div className="relative w-full h-full flex-1">
-        <ClassroomCanvas
-          className="w-full h-full rounded-none border-none"
-          cameraPreset={scene.cameraPreset}
-          hideOverlays={true}
-        />
-      </div>
-
-      {/* Top Header Floating Overlay: Minimal Cinematic Branding */}
-      <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none z-10">
-        <div className="pointer-events-auto flex items-center space-x-2">
-          {/* Mode Pill */}
-          <div className="bg-slate-900/90 text-white backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700/80 shadow-md flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="font-semibold tracking-wider uppercase text-[11px] text-emerald-400 flex items-center space-x-1">
-              <Cpu className="w-3.5 h-3.5 inline mr-1" />
-              CINEMATIC PRESENTATION
-            </span>
-          </div>
-
-          {/* Current Step Counter Badge */}
-          <div className="bg-white/95 text-slate-800 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 shadow-md text-xs font-bold font-mono">
-            SCENE {scene.id < 10 ? `0${scene.id}` : scene.id} / {PRESENTATION_SCENES.length}
-          </div>
-        </div>
-
-        {/* Live Simulation Real-time Telemetry HUD (Compact Glassmorphic Strip) */}
-        <div className="pointer-events-auto hidden md:flex items-center space-x-3 bg-white/95 backdrop-blur-md px-4 py-1.5 rounded-xl border border-slate-200 shadow-md text-xs text-slate-600">
-          <div className="flex items-center space-x-1.5">
-            <Users className="w-3.5 h-3.5 text-blue-600" />
-            <span className="font-semibold text-slate-900">{occupancy}</span>
-            <span className="text-[10px] text-slate-400 uppercase">Occ</span>
-          </div>
-          <span className="text-slate-200">|</span>
-          <div className="flex items-center space-x-1.5">
-            <Radio className={`w-3.5 h-3.5 ${pirDetected ? 'text-emerald-500 animate-pulse' : 'text-slate-400'}`} />
-            <span className="font-semibold text-slate-900">{pirDetected ? 'ACTIVE' : 'IDLE'}</span>
-            <span className="text-[10px] text-slate-400 uppercase">PIR</span>
-          </div>
-          <span className="text-slate-200">|</span>
-          <div className="flex items-center space-x-1.5">
-            <Sun className="w-3.5 h-3.5 text-amber-500" />
-            <span className="font-semibold text-slate-900">{Math.round(lightIntensity)}%</span>
-            <span className="text-[10px] text-slate-400 uppercase">Lux</span>
-          </div>
-          <span className="text-slate-200">|</span>
-          <div className="flex items-center space-x-1.5">
-            <Lightbulb className={`w-3.5 h-3.5 ${lightState ? 'text-amber-500 fill-amber-400' : 'text-slate-400'}`} />
-            <span className="font-semibold text-slate-900">{lightState ? 'ON' : 'OFF'}</span>
-            <span className="text-[10px] text-slate-400 uppercase">Light</span>
-          </div>
-          <span className="text-slate-200">|</span>
-          <div className="flex items-center space-x-1.5">
-            <Thermometer className="w-3.5 h-3.5 text-red-500" />
-            <span className="font-semibold text-slate-900">{temperature.toFixed(1)}°C</span>
-          </div>
-          <span className="text-slate-200">|</span>
-          <div className="flex items-center space-x-1.5">
-            <Wind className={`w-3.5 h-3.5 ${fanSpeed > 0 ? 'text-cyan-500' : 'text-slate-400'}`} />
-            <span className="font-semibold text-slate-900">{fanSpeed}%</span>
-            <span className="text-[10px] text-slate-400 uppercase">Fan</span>
-          </div>
-        </div>
-
-        {/* Exit Presentation */}
-        <div className="pointer-events-auto">
-          <button
-            onClick={() => navigate('/classroom')}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white/95 hover:bg-red-50 hover:text-red-700 text-slate-700 backdrop-blur-md border border-slate-200 shadow-md text-xs font-semibold transition-all cursor-pointer"
-            title="Exit Presentation"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Exit Mode</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Floating Scene Information Card (Animated with Framer Motion) */}
-      <div className="absolute top-20 left-4 max-w-sm sm:max-w-md pointer-events-none z-10">
-        <AnimatePresence mode="wait">
+    <div 
+      ref={containerRef}
+      className={`relative w-full flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-slate-900 text-slate-800 shadow-2xl overflow-hidden transition-all duration-300 ${
+        isFullscreen 
+          ? 'h-screen w-screen rounded-none border-none p-4 sm:p-6 lg:p-8' 
+          : 'h-[calc(100vh-6.5rem)] min-h-[640px]'
+      }`}
+    >
+      {/* ============================================================== */}
+      {/* 0. LIVE 3D TWIN MODAL POPUP (Direct In-Presentation Demo) */}
+      {/* ============================================================== */}
+      <AnimatePresence>
+        {showTwinModal && (
           <motion.div
-            key={scene.id}
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            transition={{ duration: 0.35, ease: 'easeOut' }}
-            className="pointer-events-auto bg-white/95 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xl"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6"
           >
-            {/* Scene Badge */}
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-bold tracking-widest uppercase text-blue-600">
-                {scene.badge}
-              </span>
-              <span className="text-[11px] font-mono text-slate-400">
-                Cam: <strong className="text-slate-700 capitalize">{scene.cameraPreset}</strong>
-              </span>
-            </div>
-
-            {/* Scene Title */}
-            <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight leading-snug">
-              {scene.title}
-            </h2>
-
-            {/* Description */}
-            <p className="text-xs sm:text-sm text-slate-600 mt-1.5 leading-relaxed">
-              {scene.description}
-            </p>
-
-            {/* Live Automated Verification Points */}
-            <div className="mt-3 pt-3 border-t border-slate-100 space-y-1">
-              {scene.details.map((detail, dIdx) => (
-                <div key={dIdx} className="flex items-center space-x-1.5 text-[11px] text-slate-500">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                  <span>{detail}</span>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-200 bg-slate-50">
+                <div className="flex items-center space-x-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Live 3D Classroom Digital Twin Demonstration
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Interactive software representation of the STM32-governed classroom
+                    </p>
+                  </div>
                 </div>
-              ))}
-            </div>
 
-            {/* Step Progress Bar (when playing) */}
-            {isPlaying && (
-              <div className="mt-3">
-                <div className="flex justify-between text-[10px] text-slate-400 font-mono mb-1">
-                  <span>Auto-advancing...</span>
-                  <span>{scene.durationSeconds - elapsedSeconds}s</span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
-                  <div
-                    className="bg-blue-600 h-1 rounded-full transition-all duration-300"
-                    style={{ width: `${progressPct}%` }}
-                  />
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => navigate('/classroom')}
+                    className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 font-semibold hover:bg-blue-100 transition-colors"
+                  >
+                    Open Full Page
+                  </button>
+                  <button
+                    onClick={() => setShowTwinModal(false)}
+                    className="p-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 transition-colors"
+                    title="Close 3D Demo Modal"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-            )}
+
+              {/* 3D Canvas Body */}
+              <div className="flex-1 w-full relative bg-slate-100">
+                <ClassroomCanvas className="w-full h-full rounded-none border-none" />
+              </div>
+
+              {/* Modal Footer Controls Hint */}
+              <div className="px-6 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+                <span>Click students, fans, lights, or sensors to inspect • Drag to orbit view</span>
+                <button
+                  onClick={() => setShowTwinModal(false)}
+                  className="px-4 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors"
+                >
+                  Return to Slide Deck
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
-        </AnimatePresence>
-      </div>
+        )}
+      </AnimatePresence>
 
-      {/* Floating Bottom Presentation Controls Dock */}
-      <div className="absolute bottom-4 left-4 right-4 flex flex-col items-center pointer-events-none z-10 space-y-2">
-        {/* Scrubber / Step Breadcrumbs */}
-        <div className="pointer-events-auto bg-white/95 backdrop-blur-md px-3 py-2 rounded-2xl border border-slate-200 shadow-xl flex items-center space-x-1 sm:space-x-1.5 max-w-full overflow-x-auto">
-          {PRESENTATION_SCENES.map((s, idx) => {
-            const isActive = idx === currentSceneIdx;
-            const isCompleted = idx < currentSceneIdx;
+      {/* ============================================================== */}
+      {/* 1. TOP PRESENTATION APP BAR (HUD) */}
+      {/* ============================================================== */}
+      <header className="flex items-center justify-between px-5 py-3 bg-white/95 backdrop-blur-md border-b border-slate-200 rounded-t-xl z-20 shrink-0">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold shadow-sm shadow-blue-500/20">
+            <Layers className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-bold text-slate-900 tracking-tight">
+                Academic Project Presentation
+              </span>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                STM32 Embedded Architecture
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 hidden sm:block">
+              {currentSlide.category} • Slide {currentSlide.id} of {totalSlides}
+            </p>
+          </div>
+        </div>
 
-            return (
-              <button
-                key={s.id}
-                onClick={() => goToScene(idx)}
-                className={`relative px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-xs scale-105'
-                    : isCompleted
-                    ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
-                }`}
+        {/* Right Action Tools */}
+        <div className="flex items-center space-x-2">
+          {/* Launch Step-by-Step 3D Simulation Twin Animation Demo */}
+          <button
+            onClick={() => navigate('/twin-demo')}
+            className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-all cursor-pointer shadow-sm hover:shadow active:scale-95"
+            title="Launch Step-by-Step 3D Twin Automation Demo"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-blue-200 animate-pulse" />
+            <span>Launch 3D Twin Demo</span>
+          </button>
+
+          {/* Controls Route Link */}
+          <button
+            onClick={() => navigate('/controls')}
+            className="hidden lg:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+            title="Open Live Sensory Cockpit"
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            <span>Live Sensors</span>
+          </button>
+
+          <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+          {/* Autoplay toggle */}
+          <button
+            onClick={() => setIsAutoPlaying(!isAutoPlaying)}
+            className={`p-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+              isAutoPlaying ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+            title={isAutoPlaying ? 'Pause Auto-Advance' : 'Auto-Advance Slides (8s)'}
+          >
+            {isAutoPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4" />}
+          </button>
+
+          {/* Fullscreen Button */}
+          <button
+            onClick={toggleFullscreen}
+            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+            title={isFullscreen ? 'Exit Fullscreen (Esc)' : 'Fullscreen Presentation (F)'}
+          >
+            {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+          </button>
+
+          {/* Exit Presentation */}
+          <button
+            onClick={() => navigate('/')}
+            className="p-1.5 rounded-lg bg-slate-100 hover:bg-red-50 hover:text-red-700 text-slate-700 transition-colors cursor-pointer"
+            title="Exit Presentation to Dashboard"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+      </header>
+
+      {/* ============================================================== */}
+      {/* 2. MAIN 16:9 SLIDE STAGE CANVAS */}
+      {/* ============================================================== */}
+      <main className="flex-1 flex items-center justify-center p-3 sm:p-6 overflow-hidden bg-slate-900/90 relative">
+        {/* 16:9 Aspect Ratio Frame Container */}
+        <div className="w-full max-w-6xl aspect-[16/9] max-h-full bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden flex flex-col justify-between relative">
+          
+          {/* Slide Header Banner */}
+          <div className="px-6 sm:px-8 pt-5 pb-3 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-600 block mb-0.5">
+                {currentSlide.category}
+              </span>
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
+                {currentSlide.title}
+              </h2>
+              <p className="text-xs text-slate-500 font-medium">
+                {currentSlide.subtitle}
+              </p>
+            </div>
+
+            <div className="text-right">
+              <span className="text-xs font-mono font-bold text-slate-400">
+                {currentSlide.id < 10 ? `0${currentSlide.id}` : currentSlide.id} / {totalSlides}
+              </span>
+            </div>
+          </div>
+
+          {/* Slide Content Body (with smooth Framer Motion slide transition) */}
+          <div className="flex-1 p-6 sm:p-8 overflow-y-auto">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentSlide.id}
+                initial={{ opacity: 0, x: 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -16 }}
+                transition={{ duration: 0.24, ease: 'easeOut' }}
+                className="h-full flex flex-col justify-center"
               >
-                <span>{s.id < 10 ? `0${s.id}` : s.id}</span>
-                <span className="hidden md:inline ml-1">{s.label}</span>
-              </button>
-            );
-          })}
+                {currentSlide.content}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {/* Slide Footer Branding Bar */}
+          <div className="px-6 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 shrink-0 font-medium">
+            <span>Smart Classroom Automation System Using STM32</span>
+            <span>Academic Viva & Evaluation Presentation</span>
+          </div>
+
+        </div>
+      </main>
+
+      {/* ============================================================== */}
+      {/* 3. BOTTOM PRESENTATION DOCK & THUMBNAIL TRACK */}
+      {/* ============================================================== */}
+      <footer className="px-5 py-3 bg-white/95 backdrop-blur-md border-t border-slate-200 rounded-b-xl z-20 shrink-0 space-y-2">
+        {/* Progress Bar */}
+        <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+          <div 
+            className="bg-blue-600 h-full rounded-full transition-all duration-300"
+            style={{ width: `${progressPercentage}%` }}
+          />
         </div>
 
-        {/* Transport Controls Bar */}
-        <div className="pointer-events-auto bg-slate-900/95 text-white backdrop-blur-md px-4 py-2 rounded-2xl border border-slate-800 shadow-2xl flex items-center space-x-3 sm:space-x-4">
-          {/* Restart */}
-          <button
-            onClick={handleRestart}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-            title="Restart Presentation (Scene 1)"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+        <div className="flex items-center justify-between pt-1">
+          {/* Slide thumbnails / jump dots */}
+          <div className="flex items-center space-x-1 sm:space-x-1.5 overflow-x-auto max-w-[65%] py-1">
+            {ACADEMIC_SLIDES.map((slide, idx) => {
+              const isActive = idx === currentSlideIdx;
+              return (
+                <button
+                  key={slide.id}
+                  onClick={() => goToSlide(idx)}
+                  className={`px-2 py-0.5 rounded-md text-[11px] font-mono font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    isActive 
+                      ? 'bg-blue-600 text-white shadow-xs scale-105' 
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                  title={`${slide.id}. ${slide.title}`}
+                >
+                  {slide.id < 10 ? `0${slide.id}` : slide.id}
+                </button>
+              );
+            })}
+          </div>
 
-          {/* Previous Scene */}
-          <button
-            onClick={handlePrevious}
-            disabled={currentSceneIdx === 0}
-            className={`p-2 rounded-xl transition-colors ${
-              currentSceneIdx === 0
-                ? 'text-slate-600 cursor-not-allowed'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800 cursor-pointer'
-            }`}
-            title="Previous Scene"
-          >
-            <SkipBack className="w-4 h-4" />
-          </button>
+          {/* Slide Transport Controls */}
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={restartPresentation}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Restart from Slide 1 (Home)"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
 
-          {/* Play / Pause Toggle Button */}
-          <button
-            onClick={togglePlay}
-            className={`px-5 py-2 rounded-xl font-bold text-xs flex items-center space-x-2 transition-all cursor-pointer shadow-md ${
-              isPlaying
-                ? 'bg-amber-500 hover:bg-amber-600 text-slate-950'
-                : 'bg-blue-600 hover:bg-blue-500 text-white'
-            }`}
-          >
-            {isPlaying ? (
-              <>
-                <Pause className="w-4 h-4 fill-current" />
-                <span>Pause</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4 fill-current" />
-                <span>{currentSceneIdx === 0 && elapsedSeconds === 0 ? 'Start Presentation' : 'Resume'}</span>
-              </>
-            )}
-          </button>
+            <button
+              onClick={prevSlide}
+              disabled={currentSlideIdx === 0}
+              className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                currentSlideIdx === 0
+                  ? 'text-slate-300 bg-slate-50 cursor-not-allowed'
+                  : 'text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer'
+              }`}
+              title="Previous Slide (Left Arrow)"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Prev</span>
+            </button>
 
-          {/* Next Scene */}
-          <button
-            onClick={handleNext}
-            disabled={currentSceneIdx === PRESENTATION_SCENES.length - 1}
-            className={`p-2 rounded-xl transition-colors ${
-              currentSceneIdx === PRESENTATION_SCENES.length - 1
-                ? 'text-slate-600 cursor-not-allowed'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800 cursor-pointer'
-            }`}
-            title="Next Scene"
-          >
-            <SkipForward className="w-4 h-4" />
-          </button>
-
-          <div className="h-4 w-px bg-slate-700 hidden sm:block"></div>
-
-          {/* Quick Scene Jump Status */}
-          <span className="text-[11px] font-mono text-slate-400 hidden sm:inline">
-            Step {currentSceneIdx + 1} of {PRESENTATION_SCENES.length}
-          </span>
+            <button
+              onClick={nextSlide}
+              disabled={currentSlideIdx === totalSlides - 1}
+              className={`flex items-center space-x-1 px-4 py-1.5 rounded-lg text-xs font-bold transition-all shadow-xs ${
+                currentSlideIdx === totalSlides - 1
+                  ? 'text-slate-300 bg-slate-100 cursor-not-allowed'
+                  : 'text-white bg-blue-600 hover:bg-blue-500 cursor-pointer'
+              }`}
+              title="Next Slide (Right Arrow or Space)"
+            >
+              <span>Next</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-      </div>
+      </footer>
     </div>
   );
 };

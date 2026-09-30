@@ -6,6 +6,8 @@ import { ClassroomPage } from './pages/ClassroomPage';
 import { ControlsPage } from './pages/ControlsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { PresentationPage } from './pages/PresentationPage';
+import { AcademicPresentationPage } from './pages/AcademicPresentationPage';
+import { PresentationTwinDemoPage } from './pages/PresentationTwinDemoPage';
 
 export const App: React.FC = () => {
   return (
@@ -17,6 +19,8 @@ export const App: React.FC = () => {
           <Route path="controls" element={<ControlsPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="presentation" element={<PresentationPage />} />
+          <Route path="twin-demo" element={<PresentationTwinDemoPage />} />
+          <Route path="academic" element={<AcademicPresentationPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
