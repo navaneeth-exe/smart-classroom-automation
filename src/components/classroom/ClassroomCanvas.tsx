@@ -22,23 +22,33 @@ interface ClassroomCanvasProps {
  * using damp/lerp to eliminate jarring cuts.
  */
 interface CameraTransitionProps {
-  targetPosition: [number, number, number];
-  targetLookAt: [number, number, number];
+  targetPosition: [number, number, number] | null;
+  targetLookAt: [number, number, number] | null;
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
+  onTransitionComplete: () => void;
 }
 
 const CameraTransitionController: React.FC<CameraTransitionProps> = ({
   targetPosition,
   targetLookAt,
   controlsRef,
+  onTransitionComplete,
 }) => {
-  const targetPosVec = React.useMemo(() => new THREE.Vector3(...targetPosition), [targetPosition]);
-  const targetLookVec = React.useMemo(() => new THREE.Vector3(...targetLookAt), [targetLookAt]);
+  const targetPosVec = React.useMemo(
+    () => (targetPosition ? new THREE.Vector3(...targetPosition) : null),
+    [targetPosition]
+  );
+  const targetLookVec = React.useMemo(
+    () => (targetLookAt ? new THREE.Vector3(...targetLookAt) : null),
+    [targetLookAt]
+  );
 
   useFrame((state, delta) => {
-    if (!controlsRef.current) return;
+    // If no active transition target, do nothing and let OrbitControls take full direct control
+    if (!targetPosVec || !targetLookVec || !controlsRef.current) return;
+
     const dt = Math.min(delta, 0.1);
-    const lerpSpeed = dt * 4.5; // Smooth cinematic ease-in/out transition
+    const lerpSpeed = dt * 5.0; // Responsive, smooth ease transition
 
     // Lerp camera position
     state.camera.position.lerp(targetPosVec, lerpSpeed);
@@ -46,6 +56,18 @@ const CameraTransitionController: React.FC<CameraTransitionProps> = ({
     // Lerp orbit control target
     controlsRef.current.target.lerp(targetLookVec, lerpSpeed);
     controlsRef.current.update();
+
+    // Check if within arrival threshold
+    const posDist = state.camera.position.distanceTo(targetPosVec);
+    const targetDist = controlsRef.current.target.distanceTo(targetLookVec);
+
+    if (posDist < 0.05 && targetDist < 0.05) {
+      // Snap to final destination and release control to OrbitControls
+      state.camera.position.copy(targetPosVec);
+      controlsRef.current.target.copy(targetLookVec);
+      controlsRef.current.update();
+      onTransitionComplete();
+    }
   });
 
   return null;
@@ -134,31 +156,53 @@ export const ClassroomCanvas: React.FC<ClassroomCanvasProps> = ({
 }) => {
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const [activePreset, setActivePreset] = React.useState<keyof typeof CAMERA_PRESETS | 'custom'>('overview');
-  const [desiredCamPos, setDesiredCamPos] = React.useState<[number, number, number]>(CAMERA_PRESETS.overview.position);
-  const [desiredTarget, setDesiredTarget] = React.useState<[number, number, number]>(CAMERA_PRESETS.overview.target);
+  
+  // Transition target positions; when null, no lerping occurs and OrbitControls has free rein
+  const [desiredCamPos, setDesiredCamPos] = React.useState<[number, number, number] | null>(null);
+  const [desiredTarget, setDesiredTarget] = React.useState<[number, number, number] | null>(null);
   
   const studentCount = useClassroomStore((state) => state.occupancy);
   const selectedInfo = useClassroomStore((state) => state.selectedInfo);
+  const setSelectedInfo = useClassroomStore((state) => state.setSelectedInfo);
 
-  const applyPreset = (key: keyof typeof CAMERA_PRESETS) => {
+  // Apply a camera preset (or reset to overview)
+  const applyPreset = React.useCallback((key: keyof typeof CAMERA_PRESETS) => {
     setActivePreset(key);
     const preset = CAMERA_PRESETS[key];
     setDesiredCamPos(preset.position);
     setDesiredTarget(preset.target);
-  };
+  }, []);
+
+  // Full reset to classroom overview: resets camera position & clears inspection selection
+  const resetToOverview = React.useCallback(() => {
+    setSelectedInfo(null);
+    applyPreset('overview');
+  }, [applyPreset, setSelectedInfo]);
+
+  // Cancel transition on user manual interaction (drag / orbit / pan / zoom)
+  const handleUserInteractionStart = React.useCallback(() => {
+    setDesiredCamPos(null);
+    setDesiredTarget(null);
+  }, []);
+
+  // Completion callback when camera finishes smooth flight
+  const handleTransitionComplete = React.useCallback(() => {
+    setDesiredCamPos(null);
+    setDesiredTarget(null);
+  }, []);
 
   // React to external cameraPreset changes (e.g., from cinematic presentation mode)
   useEffect(() => {
     if (cameraPreset && CAMERA_PRESETS[cameraPreset]) {
       applyPreset(cameraPreset);
     }
-  }, [cameraPreset]);
+  }, [cameraPreset, applyPreset]);
 
-  // Camera focus on selected object
+  // Camera focus on selected object: temporary smooth flight toward object
   useEffect(() => {
     if (!selectedInfo || !selectedInfo.targetPosition) return;
     const [tx, ty, tz] = selectedInfo.targetPosition;
-    // Calculate a gentle offset for smooth inspection
+    // Calculate a comfortable offset for smooth inspection without obstructing view
     const targetVec: [number, number, number] = [tx, ty, tz];
     const offsetVec: [number, number, number] = [tx + 2.5, ty + 1.8, tz + 3.2];
 
@@ -173,6 +217,7 @@ export const ClassroomCanvas: React.FC<ClassroomCanvasProps> = ({
       <div className="absolute inset-0 w-full h-full overflow-hidden">
         <Canvas
           shadows
+          dpr={[1, 1.75]} // Optimized dynamic device pixel ratio to maintain 60fps on high-DPI screens
           camera={{
             position: CAMERA_PRESETS.overview.position,
             fov: 44,
@@ -184,11 +229,12 @@ export const ClassroomCanvas: React.FC<ClassroomCanvasProps> = ({
           {/* Dynamic environmental lighting reacting to temperature and daylight */}
           <EnvironmentLighting />
 
-          {/* Smooth Camera Transition Controller */}
+          {/* Smooth One-Shot Interruptible Camera Transition Controller */}
           <CameraTransitionController
             targetPosition={desiredCamPos}
             targetLookAt={desiredTarget}
             controlsRef={controlsRef}
+            onTransitionComplete={handleTransitionComplete}
           />
 
           {/* Frame loop animation controller for student walking and door kinematics */}
@@ -197,16 +243,20 @@ export const ClassroomCanvas: React.FC<ClassroomCanvasProps> = ({
           {/* 3D Classroom Environment & Student Agents */}
           <ClassroomScene />
 
-          {/* Constrained Orbit Controls */}
+          {/* Fluid, Responsive Constrained Orbit Controls */}
           <OrbitControls
             ref={controlsRef}
             makeDefault
             enableDamping
-            dampingFactor={0.06}
-            minDistance={3.5}
-            maxDistance={18}
-            minPolarAngle={Math.PI / 8}
+            dampingFactor={0.08}
+            rotateSpeed={0.85}
+            zoomSpeed={0.9}
+            panSpeed={0.8}
+            minDistance={2.5}
+            maxDistance={22}
+            minPolarAngle={Math.PI / 12}
             maxPolarAngle={Math.PI / 2.05} // Prevents looking through floor underneath
+            onStart={handleUserInteractionStart}
           />
         </Canvas>
       </div>
@@ -251,7 +301,7 @@ export const ClassroomCanvas: React.FC<ClassroomCanvasProps> = ({
               </button>
             ))}
             <button
-              onClick={() => applyPreset('overview')}
+              onClick={resetToOverview}
               title="Reset to Overview"
               className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center space-x-1 shrink-0 cursor-pointer"
             >
