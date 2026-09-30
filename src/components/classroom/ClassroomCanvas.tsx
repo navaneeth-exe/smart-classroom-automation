@@ -82,27 +82,30 @@ const CameraTransitionController: React.FC<CameraTransitionProps> = ({
 const EnvironmentLighting: React.FC = () => {
   const temperature = useClassroomStore((state) => state.temperature);
   const lightIntensity = useClassroomStore((state) => state.lightIntensity);
+  const lightState = useClassroomStore((state) => state.lightState);
 
   const ambientRef = useRef<THREE.AmbientLight>(null);
   const sunLightRef = useRef<THREE.DirectionalLight>(null);
+  const frontFillRef = useRef<THREE.DirectionalLight>(null);
+  const artificialFillRef = useRef<THREE.AmbientLight>(null);
 
   useFrame((_, delta) => {
     // 1. Calculate subtle environmental color based on temperature
     let targetColor = '#ffffff';
-    let targetAmbientIntensity = 0.52;
+    let targetAmbientIntensity = 0.48;
 
     if (temperature < 25) {
       targetColor = '#f0fdf4'; // Crisp cool-neutral tone
-      targetAmbientIntensity = 0.54;
+      targetAmbientIntensity = 0.50;
     } else if (temperature < 30) {
       targetColor = '#fefce8'; // Normal pleasant daylight tone
-      targetAmbientIntensity = 0.56;
+      targetAmbientIntensity = 0.52;
     } else if (temperature < 35) {
       targetColor = '#fed7aa'; // Noticeably warm tone
-      targetAmbientIntensity = 0.60;
+      targetAmbientIntensity = 0.56;
     } else {
       targetColor = '#fdba74'; // Stronger warm amber atmosphere
-      targetAmbientIntensity = 0.64;
+      targetAmbientIntensity = 0.60;
     }
 
     if (ambientRef.current) {
@@ -110,17 +113,32 @@ const EnvironmentLighting: React.FC = () => {
       ambientRef.current.intensity = THREE.MathUtils.lerp(ambientRef.current.intensity, targetAmbientIntensity, Math.min(1, delta * 3));
     }
 
-    // 2. Window sunlight based on lightIntensity (0% = night dark, 100% = intense sun)
+    // 2. Window sunlight based on daylight lightIntensity (0% = dark night, 100% = bright sun)
     if (sunLightRef.current) {
       const sunTarget = (lightIntensity / 100) * 1.35;
       sunLightRef.current.intensity = THREE.MathUtils.lerp(sunLightRef.current.intensity, sunTarget, Math.min(1, delta * 4));
+    }
+
+    // 3. Smooth artificial ambient fill based on ceiling lightState (0.0 when OFF, 0.45 when ON)
+    if (artificialFillRef.current) {
+      const artTarget = lightState ? 0.45 : 0.0;
+      artificialFillRef.current.intensity = THREE.MathUtils.lerp(artificialFillRef.current.intensity, artTarget, Math.min(1, delta * 6.5));
+    }
+
+    // 4. Board area fill light slightly boosts when ceiling lights are ON
+    if (frontFillRef.current) {
+      const frontTarget = lightState ? 0.55 : 0.22;
+      frontFillRef.current.intensity = THREE.MathUtils.lerp(frontFillRef.current.intensity, frontTarget, Math.min(1, delta * 6.5));
     }
   });
 
   return (
     <>
       {/* Soft Ambient Classroom Base Light */}
-      <ambientLight ref={ambientRef} intensity={0.55} color="#ffffff" />
+      <ambientLight ref={ambientRef} intensity={0.50} color="#ffffff" />
+
+      {/* Dynamic Artificial Ambient Fill Light responding directly to lightState */}
+      <ambientLight ref={artificialFillRef} intensity={0.0} color="#fffbeb" />
 
       {/* Gentle Hemisphere Light for realistic floor bounce & ceiling softness */}
       <hemisphereLight args={['#ffffff', '#cbd5e1', 0.35]} />
@@ -144,7 +162,7 @@ const EnvironmentLighting: React.FC = () => {
       />
 
       {/* Interior Front board fill light */}
-      <directionalLight position={[0, 4, 6]} intensity={0.3} color="#e0f2fe" />
+      <directionalLight ref={frontFillRef} position={[0, 4, 6]} intensity={0.25} color="#e0f2fe" />
     </>
   );
 };

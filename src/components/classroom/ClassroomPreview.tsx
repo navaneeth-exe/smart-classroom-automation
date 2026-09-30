@@ -1,15 +1,32 @@
 import React from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
+import * as THREE from 'three';
 import { useClassroomStore } from '../../store/classroomStore';
 
 function MinimalClassroomScene() {
   const lightState = useClassroomStore((state) => state.lightState);
+  const ambientRef = React.useRef<THREE.AmbientLight>(null);
+  const ceilingFillRef = React.useRef<THREE.PointLight>(null);
+
+  useFrame((_, delta) => {
+    if (ambientRef.current) {
+      const targetAmb = lightState ? 0.95 : 0.45;
+      ambientRef.current.intensity = THREE.MathUtils.lerp(ambientRef.current.intensity, targetAmb, Math.min(1, delta * 6.5));
+    }
+    if (ceilingFillRef.current) {
+      const targetFill = lightState ? 2.5 : 0.0;
+      ceilingFillRef.current.intensity = THREE.MathUtils.lerp(ceilingFillRef.current.intensity, targetFill, Math.min(1, delta * 6.5));
+    }
+  });
 
   return (
     <>
-      <ambientLight intensity={lightState ? 1.2 : 0.4} />
-      <directionalLight position={[10, 15, 10]} intensity={0.8} />
+      <ambientLight ref={ambientRef} intensity={0.5} color="#ffffff" />
+      <directionalLight position={[10, 15, 10]} intensity={0.8} color="#fffbeb" />
+      
+      {/* Downward ceiling fill light simulating overhead classroom troffer arrays */}
+      <pointLight ref={ceilingFillRef} position={[0, 4.0, 0]} intensity={0} distance={15} color="#fef9c3" />
 
       {/* Classroom Ground Plane */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
